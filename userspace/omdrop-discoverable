@@ -97,6 +97,9 @@ rx_watch(){
 
 rx_mark(){ printf '%s' "$1" > "$RUN/rx_proven"; }
 
+# Local (29-oct-2026): un archivo está pasando por awdl0 (el receptor en :8771 o un envío al :8770 del par).
+transfer_live(){ ss -Htn state established '( sport = :8771 or dport = :8770 )' 2>/dev/null | grep -q '%awdl0'; }
+
 # The window's state, as the moved radio code reports it (omdrop-broadcom.sh,
 # "the radio backend hooks"): why a start failed, and the receive proof's reset
 # and baseline, taken where the gate decides the radio transmits.
@@ -179,7 +182,7 @@ same_process(){
 supervise(){
   # $1 was the deadline at spawn; it is deliberately not bound, because the
   # loop below re-reads $RUN/until so a later press can move it.
-  local secs=$2 seq=0
+  local secs=$2 seq=0 quiet=0
   is_duration "$secs" || die 2 "__supervise: seconds must be a number"
   echo $$ > "$RUN/supervisor"
   trap 'kill_children; printf stopped > "$RUN/reason"; rm -f "$RUN/until"; exit 0' TERM INT
@@ -213,6 +216,23 @@ supervise(){
   while deadline=$(cat "$RUN/until" 2>/dev/null) && is_uint "$deadline" \
         && { [[ $deadline == 0 ]] || [[ $(now) -lt $deadline ]]; }; do
     seq=$(( seq + 1 ))
+    # Local (29-oct-2026): mientras pasa un archivo, ni la ráfaga de 40 anuncios ni el seguimiento de la
+    # elección (que puede reescribir la plantilla): comparten anillo y ranuras con nuestros ACK hacia el
+    # iPhone, y una subida de 104 MB se cortaba a la mitad. El enlace se sigue reparando como en radio_tick.
+    if transfer_live; then
+      (( quiet )) || log "transfer in flight: adverts and election tracking paused"
+      quiet=1
+      if ! ip -6 addr show dev "$IF" scope link 2>/dev/null | grep -q inet6; then
+        ip link set "$IF" up 2>/dev/null
+        ip link set "$IF" promisc on 2>/dev/null
+        ip link set "$IF" allmulticast on 2>/dev/null
+      fi
+      rx_watch
+      sleep 2 & wait $!
+      continue
+    fi
+    (( quiet )) && log "transfer finished: adverts and election tracking resumed"
+    quiet=0
     radio_tick
     # The gate opens on transmit alone; this is where the receive half earns
     # its claim, without any start paying for the measurement.

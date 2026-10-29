@@ -62,6 +62,10 @@ def slots_for(peer, mch, shape):
             # re-derive their sequence over time, so this is a moving target:
             # re-read the peer's chan_seq before trusting it.
             'mirror': [peer, 0, 149, 0, 0, 149, peer, peer, mch, 0, 149, 0, 0, 149, peer, peer],
+            # Locales (29-oct-2026), las mismas que en awdl-up (apply_schedule): tienen que coincidir.
+            'sin149': [peer, peer, peer, 0, 0, 0, 0, peer, mch, peer, peer, peer, 0, 0, 0, peer],
+            'ancha': [peer, peer, peer, peer, 0, 0, peer, peer, mch, peer, peer, peer, peer, 0, 0, peer],
+            'apple50': [peer, peer, peer, peer, 0, 0, 0, 0, mch, peer, peer, peer, 0, 0, 0, 0],
             }[shape]
 
 def configured_slots():
